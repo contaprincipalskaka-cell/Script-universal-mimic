@@ -608,4 +608,4 @@ end)
 -- Inicializa o nome do primeiro alvo
 UpdatePlayerLabel()
 
-print("$ KAKA MØDS - Versão Completa Atualizada com Mímico e Spectate visível!")[span_4](start_span)[span_4](end_span)[span_5](start_span)[span_5](end_span)
+print("$ KAKA MØDS - Versão Completa Atualizada com Mímico e Spectate visível!")
