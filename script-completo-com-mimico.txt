@@ -1,0 +1,611 @@
+-- ==========================================
+--        $ KAKA MØDS (Build 2026)
+--        Criado por: @karllys__
+-- ==========================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Root = Character:WaitForChild("HumanoidRootPart")
+local Camera = Workspace.CurrentCamera
+
+local teleportPoints = {}
+local isLooping = false
+local currentSpeed = 16
+
+-- Variáveis de Controle
+local isFlying = false
+local flySpeed = 50 
+
+local isSpinning = false
+local spinSpeed = 5 
+
+local isNoClip = false
+local noClipConnection = nil
+
+-- Variáveis de Spectate & TP Player
+local selectedPlayerIndex = 1
+local isSpectating = false
+
+-- Variáveis da Função Mímico
+local isMimicEnabled = false
+local selectedMimicTarget = nil
+local mimicOffsetType = "Atrás" -- Opções: "Atrás", "Frente", "Esquerda", "Direita"
+local mimicIndex = 1
+local activeAnimTrack = nil
+
+-- Instâncias de Física Reutilizáveis
+local currentFlyBV = nil
+local currentSpinBAV = nil
+
+-- Interface Visual (GUI)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KakaModsMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 235, 0, 500)
+MainFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 40)
+Title.Text = " $ KAKA MØDS"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 20
+Title.Font = Enum.Font.SourceSansBold
+Title.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local BtnMinimize = Instance.new("TextButton")
+BtnMinimize.Size = UDim2.new(0, 30, 0, 40)
+BtnMinimize.Position = UDim2.new(1, -30, 0, 0)
+BtnMinimize.Text = "_"
+BtnMinimize.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnMinimize.TextSize = 20
+BtnMinimize.Font = Enum.Font.SourceSansBold
+BtnMinimize.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BtnMinimize.BorderSizePixel = 0
+BtnMinimize.Parent = MainFrame
+
+local OpenFrame = Instance.new("TextButton")
+OpenFrame.Size = UDim2.new(0, 90, 0, 35)
+OpenFrame.Position = UDim2.new(0, 10, 0, 10)
+OpenFrame.Text = "KAKA MØDS"
+OpenFrame.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenFrame.Font = Enum.Font.SourceSansBold
+OpenFrame.TextSize = 14
+OpenFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+OpenFrame.BorderSizePixel = 2
+OpenFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+OpenFrame.Visible = false
+OpenFrame.Draggable = true
+OpenFrame.Parent = ScreenGui
+
+local Credits = Instance.new("TextLabel")
+Credits.Size = UDim2.new(1, 0, 0, 20)
+Credits.Position = UDim2.new(0, 0, 1, -20)
+Credits.Text = "Criado por @karllys__"
+Credits.TextColor3 = Color3.fromRGB(150, 0, 0)
+Credits.TextSize = 12
+Credits.Font = Enum.Font.SourceSansItalic
+Credits.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Credits.ZIndex = 5
+Credits.Parent = MainFrame
+
+local ScrollingContainer = Instance.new("ScrollingFrame")
+ScrollingContainer.Size = UDim2.new(1, 0, 1, -60)
+ScrollingContainer.Position = UDim2.new(0, 0, 0, 40)
+ScrollingContainer.BackgroundTransparency = 1
+ScrollingContainer.BorderSizePixel = 0
+ScrollingContainer.CanvasSize = UDim2.new(0, 0, 0, 800) -- Expandido para caber a aba Mímico
+ScrollingContainer.ScrollBarThickness = 6
+ScrollingContainer.Parent = MainFrame
+
+-- --- CONTROLES DE VELOCIDADE ---
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, 0, 0, 30)
+SpeedLabel.Position = UDim2.new(0, 0, 0, 5)
+SpeedLabel.Text = "Speed: " .. currentSpeed
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Parent = ScrollingContainer
+
+local BtnSpeedMinus = Instance.new("TextButton")
+BtnSpeedMinus.Size = UDim2.new(0, 40, 0, 25)
+BtnSpeedMinus.Position = UDim2.new(0, 20, 0, 35)
+BtnSpeedMinus.Text = "-"
+BtnSpeedMinus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpeedMinus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnSpeedMinus.Parent = ScrollingContainer
+
+local BtnSpeedPlus = Instance.new("TextButton")
+BtnSpeedPlus.Size = UDim2.new(0, 40, 0, 25)
+BtnSpeedPlus.Position = UDim2.new(1, -60, 0, 35)
+BtnSpeedPlus.Text = "+"
+BtnSpeedPlus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpeedPlus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnSpeedPlus.Parent = ScrollingContainer
+
+-- --- CONTROLES DE TELEPORTE SALVO ---
+local TPCountLabel = Instance.new("TextLabel")
+TPCountLabel.Size = UDim2.new(1, 0, 0, 30)
+TPCountLabel.Position = UDim2.new(0, 0, 0, 70)
+TPCountLabel.Text = "Pontos Salvos: 0"
+TPCountLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+TPCountLabel.BackgroundTransparency = 1
+TPCountLabel.Parent = ScrollingContainer
+
+local BtnAddTP = Instance.new("TextButton")
+BtnAddTP.Size = UDim2.new(0, 180, 0, 30)
+BtnAddTP.Position = UDim2.new(0, 20, 0, 105)
+BtnAddTP.Text = "[ + ] Adicionar Ponto Atual"
+BtnAddTP.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BtnAddTP.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnAddTP.Parent = ScrollingContainer
+
+local BtnRemoveTP = Instance.new("TextButton")
+BtnRemoveTP.Size = UDim2.new(0, 180, 0, 30)
+BtnRemoveTP.Position = UDim2.new(0, 20, 0, 140)
+BtnRemoveTP.Text = "[ - ] Remover Último Ponto"
+BtnRemoveTP.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BtnRemoveTP.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnRemoveTP.Parent = ScrollingContainer
+
+local BtnLoopTP = Instance.new("TextButton")
+BtnLoopTP.Size = UDim2.new(0, 180, 0, 38)
+BtnLoopTP.Position = UDim2.new(0, 20, 0, 175)
+BtnLoopTP.Text = "INICIAR LOOPING TP"
+BtnLoopTP.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnLoopTP.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnLoopTP.Font = Enum.Font.SourceSansBold
+BtnLoopTP.TextSize = 14
+BtnLoopTP.Parent = ScrollingContainer
+
+-- --- SELEÇÃO DE JOGADOR / SPECTATE / TP ---
+local PlayerSelectLabel = Instance.new("TextLabel")
+PlayerSelectLabel.Size = UDim2.new(1, 0, 0, 20)
+PlayerSelectLabel.Position = UDim2.new(0, 0, 0, 225)
+PlayerSelectLabel.Text = "Alvo: Ninguém"
+PlayerSelectLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayerSelectLabel.BackgroundTransparency = 1
+PlayerSelectLabel.TextSize = 13
+PlayerSelectLabel.Font = Enum.Font.SourceSansBold
+PlayerSelectLabel.Parent = ScrollingContainer
+
+local BtnPrevPlayer = Instance.new("TextButton")
+BtnPrevPlayer.Size = UDim2.new(0, 40, 0, 25)
+BtnPrevPlayer.Position = UDim2.new(0, 20, 0, 250)
+BtnPrevPlayer.Text = "<"
+BtnPrevPlayer.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnPrevPlayer.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnPrevPlayer.Font = Enum.Font.SourceSansBold
+BtnPrevPlayer.Parent = ScrollingContainer
+
+local BtnNextPlayer = Instance.new("TextButton")
+BtnNextPlayer.Size = UDim2.new(0, 40, 0, 25)
+BtnNextPlayer.Position = UDim2.new(1, -60, 0, 250)
+BtnNextPlayer.Text = ">"
+BtnNextPlayer.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnNextPlayer.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnNextPlayer.Font = Enum.Font.SourceSansBold
+BtnNextPlayer.Parent = ScrollingContainer
+
+local BtnSpectate = Instance.new("TextButton")
+BtnSpectate.Size = UDim2.new(0, 180, 0, 28)
+BtnSpectate.Position = UDim2.new(0, 20, 0, 280)
+BtnSpectate.Text = "TELAR: DESATIVADO"
+BtnSpectate.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpectate.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnSpectate.Font = Enum.Font.SourceSansBold
+BtnSpectate.TextSize = 12
+BtnSpectate.Parent = ScrollingContainer
+
+local BtnTPToPlayer = Instance.new("TextButton")
+BtnTPToPlayer.Size = UDim2.new(0, 180, 0, 28)
+BtnTPToPlayer.Position = UDim2.new(0, 20, 0, 313)
+BtnTPToPlayer.Text = "TELEPORTAR NO PLAYER"
+BtnTPToPlayer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BtnTPToPlayer.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnTPToPlayer.Font = Enum.Font.SourceSansBold
+BtnTPToPlayer.TextSize = 12
+BtnTPToPlayer.Parent = ScrollingContainer
+
+-- --- CONTROLES DE FLY, SPIN, NOCLIP ---
+local BtnFly = Instance.new("TextButton")
+BtnFly.Size = UDim2.new(0, 180, 0, 30)
+BtnFly.Position = UDim2.new(0, 20, 0, 350)
+BtnFly.Text = "VOAR: DESATIVADO"
+BtnFly.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnFly.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnFly.Font = Enum.Font.SourceSansBold
+BtnFly.TextSize = 13
+BtnFly.Parent = ScrollingContainer
+
+local FlySpeedLabel = Instance.new("TextLabel")
+FlySpeedLabel.Size = UDim2.new(1, 0, 0, 20)
+FlySpeedLabel.Position = UDim2.new(0, 0, 0, 385)
+FlySpeedLabel.Text = "Fly Speed: " .. flySpeed
+FlySpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FlySpeedLabel.BackgroundTransparency = 1
+FlySpeedLabel.TextSize = 12
+FlySpeedLabel.Parent = ScrollingContainer
+
+local BtnFlyMinus = Instance.new("TextButton")
+BtnFlyMinus.Size = UDim2.new(0, 40, 0, 20)
+BtnFlyMinus.Position = UDim2.new(0, 20, 0, 408)
+BtnFlyMinus.Text = "-"
+BtnFlyMinus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnFlyMinus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnFlyMinus.Parent = ScrollingContainer
+
+local BtnFlyPlus = Instance.new("TextButton")
+BtnFlyPlus.Size = UDim2.new(0, 40, 0, 20)
+BtnFlyPlus.Position = UDim2.new(1, -60, 0, 408)
+BtnFlyPlus.Text = "+"
+BtnFlyPlus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnFlyPlus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnFlyPlus.Parent = ScrollingContainer
+
+local BtnSpin = Instance.new("TextButton")
+BtnSpin.Size = UDim2.new(0, 180, 0, 30)
+BtnSpin.Position = UDim2.new(0, 20, 0, 435)
+BtnSpin.Text = "SPINBOT: DESATIVADO"
+BtnSpin.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpin.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnSpin.Font = Enum.Font.SourceSansBold
+BtnSpin.TextSize = 13
+BtnSpin.Parent = ScrollingContainer
+
+local SpinSpeedLabel = Instance.new("TextLabel")
+SpinSpeedLabel.Size = UDim2.new(1, 0, 0, 20)
+SpinSpeedLabel.Position = UDim2.new(0, 0, 0, 470)
+SpinSpeedLabel.Text = "Spin Speed: " .. spinSpeed
+SpinSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpinSpeedLabel.BackgroundTransparency = 1
+SpinSpeedLabel.TextSize = 12
+SpinSpeedLabel.Parent = ScrollingContainer
+
+local BtnSpinMinus = Instance.new("TextButton")
+BtnSpinMinus.Size = UDim2.new(0, 40, 0, 20)
+BtnSpinMinus.Position = UDim2.new(0, 20, 0, 493)
+BtnSpinMinus.Text = "-"
+BtnSpinMinus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpinMinus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnSpinMinus.Parent = ScrollingContainer
+
+local BtnSpinPlus = Instance.new("TextButton")
+BtnSpinPlus.Size = UDim2.new(0, 40, 0, 20)
+BtnSpinPlus.Position = UDim2.new(1, -60, 0, 493)
+BtnSpinPlus.Text = "+"
+BtnSpinPlus.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnSpinPlus.TextColor3 = Color3.fromRGB(255, 0, 0)
+BtnSpinPlus.Parent = ScrollingContainer
+
+local BtnNoClip = Instance.new("TextButton")
+BtnNoClip.Size = UDim2.new(0, 180, 0, 30)
+BtnNoClip.Position = UDim2.new(0, 20, 0, 525)
+BtnNoClip.Text = "SEM COLISÃO: DESATIVADO"
+BtnNoClip.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnNoClip.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnNoClip.Font = Enum.Font.SourceSansBold
+BtnNoClip.TextSize = 12
+BtnNoClip.Parent = ScrollingContainer
+
+
+-- ==========================================
+--        NOVA ABA: MÍMICO (COM ANIMAÇÃO)
+-- ==========================================
+local MimicHeader = Instance.new("TextLabel")
+MimicHeader.Size = UDim2.new(1, 0, 0, 30)
+MimicHeader.Position = UDim2.new(0, 0, 0, 575)
+MimicHeader.Text = "--- [ ABA: MÍMICO ] ---"
+MimicHeader.TextColor3 = Color3.fromRGB(255, 0, 0)
+MimicHeader.Font = Enum.Font.SourceSansBold
+MimicHeader.BackgroundTransparency = 1
+MimicHeader.Parent = ScrollingContainer
+
+local BtnSelectMimicTarget = Instance.new("TextButton")
+BtnSelectMimicTarget.Size = UDim2.new(0, 180, 0, 30)
+BtnSelectMimicTarget.Position = UDim2.new(0, 20, 0, 610)
+BtnSelectMimicTarget.Text = "Alvo Mímico: Nenhum"
+BtnSelectMimicTarget.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BtnSelectMimicTarget.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnSelectMimicTarget.Font = Enum.Font.SourceSans
+BtnSelectMimicTarget.TextSize = 13
+BtnSelectMimicTarget.Parent = ScrollingContainer
+
+local BtnMimicPosition = Instance.new("TextButton")
+BtnMimicPosition.Size = UDim2.new(0, 180, 0, 30)
+BtnMimicPosition.Position = UDim2.new(0, 20, 0, 645)
+BtnMimicPosition.Text = "Posição: Atrás"
+BtnMimicPosition.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+BtnMimicPosition.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnMimicPosition.Font = Enum.Font.SourceSans
+BtnMimicPosition.TextSize = 13
+BtnMimicPosition.Parent = ScrollingContainer
+
+local BtnMimicToggle = Instance.new("TextButton")
+BtnMimicToggle.Size = UDim2.new(0, 180, 0, 35)
+BtnMimicToggle.Position = UDim2.new(0, 20, 0, 680)
+BtnMimicToggle.Text = "IMITAR JOGADOR: OFF"
+BtnMimicToggle.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+BtnMimicToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+BtnMimicToggle.Font = Enum.Font.SourceSansBold
+BtnMimicToggle.TextSize = 13
+BtnMimicToggle.Parent = ScrollingContainer
+
+
+-- Minimizar / Abrir Menu
+BtnMinimize.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenFrame.Position = UDim2.new(0, MainFrame.AbsolutePosition.X, 0, MainFrame.AbsolutePosition.Y)
+    OpenFrame.Visible = true
+end)
+
+OpenFrame.MouseButton1Click:Connect(function()
+    OpenFrame.Visible = false
+    MainFrame.Position = UDim2.new(0, OpenFrame.AbsolutePosition.X, 0, OpenFrame.AbsolutePosition.Y)
+    MainFrame.Visible = true
+end)
+
+-- --- LÓGICA DE SELEÇÃO DE JOGADORES (SPECTATE) ---
+local function GetOtherPlayers()
+    local playerList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Player then
+            table.insert(playerList, p)
+        end
+    end
+    return playerList
+end
+
+local function GetSelectedPlayer()
+    local otherPlayers = GetOtherPlayers()
+    if #otherPlayers == 0 then return nil end
+    if selectedPlayerIndex > #otherPlayers then selectedPlayerIndex = 1 end
+    if selectedPlayerIndex < 1 then selectedPlayerIndex = #otherPlayers end
+    return otherPlayers[selectedPlayerIndex]
+end
+
+local function UpdatePlayerLabel()
+    local target = GetSelectedPlayer()
+    if target then
+        PlayerSelectLabel.Text = "Alvo: " .. target.DisplayName
+    else
+        PlayerSelectLabel.Text = "Alvo: Nenhum Player"
+    end
+end
+
+BtnNextPlayer.MouseButton1Click:Connect(function()
+    local otherPlayers = GetOtherPlayers()
+    if #otherPlayers > 0 then
+        selectedPlayerIndex = (selectedPlayerIndex % #otherPlayers) + 1
+        UpdatePlayerLabel()
+        if isSpectating then
+            local target = GetSelectedPlayer()
+            if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+                Camera.CameraSubject = target.Character.Humanoid
+            end
+        end
+    end
+end)
+
+BtnPrevPlayer.MouseButton1Click:Connect(function()
+    local otherPlayers = GetOtherPlayers()
+    if #otherPlayers > 0 then
+        selectedPlayerIndex = selectedPlayerIndex - 1
+        if selectedPlayerIndex < 1 then selectedPlayerIndex = #otherPlayers end
+        UpdatePlayerLabel()
+        if isSpectating then
+            local target = GetSelectedPlayer()
+            if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+                Camera.CameraSubject = target.Character.Humanoid
+            end
+        end
+    end
+end)
+
+-- LÓGICA DE TELAR (SPECTATE)
+local function StopSpectating()
+    isSpectating = false
+    BtnSpectate.Text = "TELAR: DESATIVADO"
+    BtnSpectate.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+    if Humanoid then
+        Camera.CameraSubject = Humanoid
+    end
+end
+
+BtnSpectate.MouseButton1Click:Connect(function()
+    isSpectating = not isSpectating
+    if isSpectating then
+        local target = GetSelectedPlayer()
+        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+            BtnSpectate.Text = "TELAR: ATIVADO"
+            BtnSpectate.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+            Camera.CameraSubject = target.Character.Humanoid
+        else
+            isSpectating = false
+            BtnSpectate.Text = "Nenhum Player Válido!"
+            task.wait(1)
+            BtnSpectate.Text = "TELAR: DESATIVADO"
+        end
+    else
+        StopSpectating()
+    end
+end)
+
+-- TELEPORTAR NO PLAYER
+BtnTPToPlayer.MouseButton1Click:Connect(function()
+    local target = GetSelectedPlayer()
+    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+        if Root then
+            Root.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 2, 0)
+        end
+    else
+        BtnTPToPlayer.Text = "Player Indisponível!"
+        task.wait(1)
+        BtnTPToPlayer.Text = "TELEPORTAR NO PLAYER"
+    end
+end)
+
+-- --- LÓGICA DA ABA MÍMICO ---
+BtnSelectMimicTarget.MouseButton1Click:Connect(function()
+    local playersList = GetOtherPlayers()
+    if #playersList == 0 then
+        BtnSelectMimicTarget.Text = "Nenhum jogador online"
+        task.wait(1.5)
+        BtnSelectMimicTarget.Text = "Alvo Mímico: Nenhum"
+        selectedMimicTarget = nil
+        return
+    end
+
+    mimicIndex = mimicIndex + 1
+    if mimicIndex > #playersList then
+        mimicIndex = 1
+    end
+
+    selectedMimicTarget = playersList[mimicIndex]
+    BtnSelectMimicTarget.Text = "Alvo Mímico: " .. selectedMimicTarget.Name
+end)
+
+BtnMimicPosition.MouseButton1Click:Connect(function()
+    if mimicOffsetType == "Atrás" then
+        mimicOffsetType = "Frente"
+    elseif mimicOffsetType == "Frente" then
+        mimicOffsetType = "Esquerda"
+    elseif mimicOffsetType == "Esquerda" then
+        mimicOffsetType = "Direita"
+    else
+        mimicOffsetType = "Atrás"
+    end
+    BtnMimicPosition.Text = "Posição: " .. mimicOffsetType
+end)
+
+BtnMimicToggle.MouseButton1Click:Connect(function()
+    if not selectedMimicTarget then
+        BtnMimicToggle.Text = "Selecione um alvo!"
+        task.wait(1)
+        BtnMimicToggle.Text = "IMITAR JOGADOR: OFF"
+        return
+    end
+
+    isMimicEnabled = not isMimicEnabled
+    if isMimicEnabled then
+        BtnMimicToggle.Text = "IMITAR JOGADOR: ON"
+        BtnMimicToggle.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    else
+        BtnMimicToggle.Text = "IMITAR JOGADOR: OFF"
+        BtnMimicToggle.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+        if activeAnimTrack then
+            activeAnimTrack:Stop()
+            activeAnimTrack = nil
+        end
+    end
+end)
+
+-- Limpeza de Objetos ao Respawnar
+local function ResetStates()
+    isFlying = false
+    BtnFly.Text = "VOAR: DESATIVADO"
+    BtnFly.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+    if currentFlyBV then currentFlyBV:Destroy() currentFlyBV = nil end
+
+    isSpinning = false
+    BtnSpin.Text = "SPINBOT: DESATIVADO"
+    BtnSpin.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+    if currentSpinBAV then currentSpinBAV:Destroy() currentSpinBAV = nil end
+
+    isNoClip = false
+    BtnNoClip.Text = "SEM COLISÃO: DESATIVADO"
+        BtnNoClip.BackgroundColor3 = Color3.fromRGB(30, 0, 0)
+        if noClipConnection then
+            noClipConnection:Disconnect()
+            noClipConnection = nil
+        end
+    end
+end)
+
+-- Loop principal do Mímico (Posição + Animações)
+RunService.Heartbeat:Connect(function()
+    if not isMimicEnabled then return end
+    if not selectedMimicTarget or not selectedMimicTarget.Character then return end
+    
+    local targetChar = selectedMimicTarget.Character
+    local myChar = Player.Character
+    if not targetChar or not myChar then return end
+
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
+    local myHumanoid = myChar:FindFirstChildOfClass("Humanoid")
+    
+    if not targetRoot or not myRoot or not targetHumanoid or not myHumanoid then return end
+
+    local distance = 3
+    local offsetCF = CFrame.new(0, 0, distance)
+
+    if mimicOffsetType == "Frente" then
+        offsetCF = CFrame.new(0, 0, -distance)
+    elseif mimicOffsetType == "Esquerda" then
+        offsetCF = CFrame.new(-distance, 0, 0)
+    elseif mimicOffsetType == "Direita" then
+        offsetCF = CFrame.new(distance, 0, 0)
+    end
+
+    myRoot.CFrame = targetRoot.CFrame * offsetCF
+    myRoot.Velocity = targetRoot.Velocity
+
+    if targetHumanoid.Jump and not myHumanoid.Jump then
+        myHumanoid.Jump = true
+    end
+
+    local animator = targetHumanoid:FindFirstChildOfClass("Animator")
+    local myAnimator = myHumanoid:FindFirstChildOfClass("Animator")
+    
+    if animator and myAnimator then
+        local playingTracks = animator:GetPlayingAnimationTracks()
+        if #playingTracks > 0 then
+            local targetTrack = playingTracks[1]
+            if targetTrack then
+                local animId = targetTrack.Animation.AnimationId
+                
+                if not activeAnimTrack or activeAnimTrack.Animation.AnimationId ~= animId then
+                    if activeAnimTrack then
+                        activeAnimTrack:Stop()
+                    end
+                    local newAnim = Instance.new("Animation")
+                    newAnim.AnimationId = animId
+                    activeAnimTrack = myAnimator:LoadAnimation(newAnim)
+                    activeAnimTrack:Play()
+                    activeAnimTrack.TimePosition = targetTrack.TimePosition
+                else
+                    if math.abs(activeAnimTrack.TimePosition - targetTrack.TimePosition) > 0.1 then
+                        activeAnimTrack.TimePosition = targetTrack.TimePosition
+                    end
+                end
+            end
+        else
+            if activeAnimTrack then
+                activeAnimTrack:Stop()
+                activeAnimTrack = nil
+            end
+        end
+    end
+end)
+
+-- Inicializa o nome do primeiro alvo
+UpdatePlayerLabel()
+
+print("$ KAKA MØDS - Versão Completa Atualizada com Mímico e Spectate visível!")[span_4](start_span)[span_4](end_span)[span_5](start_span)[span_5](end_span)
